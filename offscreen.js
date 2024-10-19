@@ -1,4 +1,4 @@
-chrome.runtime.onMessage.addListener(async (message) => {
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   if (message.target === 'offscreen') {
     switch (message.type) {
       case 'start-recording':
@@ -7,14 +7,24 @@ chrome.runtime.onMessage.addListener(async (message) => {
       case 'stop-recording':
         stopRecording();
         break;
+      case 'play-audio':
+        playAudio();
+        break;
+      case 'download-audio':
+        downloadAudio();
+        break;
       default:
         throw new Error('Unrecognized message:', message.type);
     }
+  } else if (message.type === 'check-audio') {
+    sendResponse({ audioAvailable: audioBlobs.length > 0 });
+    return true;
   }
 });
 
 let recorder;
 let data = [];
+let audioBlobs = []; // Array to store audio blobs
 
 async function startRecording(streamId) {
   if (recorder?.state === 'recording') {
@@ -29,39 +39,52 @@ async function startRecording(streamId) {
       }
     }
   });
-  // Continue to play the captured audio to the user.
+
   const output = new AudioContext();
   const source = output.createMediaStreamSource(media);
   source.connect(output.destination);
 
-  // Start recording.
   recorder = new MediaRecorder(media, { mimeType: 'audio/webm' });
   recorder.ondataavailable = (event) => data.push(event.data);
   recorder.onstop = () => {
     const blob = new Blob(data, { type: 'audio/webm' });
-    window.open(URL.createObjectURL(blob), '_blank');
-
-    // Clear state ready for next recording
-    recorder = undefined;
+    audioBlobs.push(blob); // Store the blob in the array
     data = [];
   };
   recorder.start();
 
-  // Record the current state in the URL. This provides a very low-bandwidth
-  // way of communicating with the service worker (the service worker can check
-  // the URL of the document and see the current recording state). We can't
-  // store that directly in the service worker as it may be terminated while
-  // recording is in progress. We could write it to storage but that slightly
-  // increases the risk of things getting out of sync.
   window.location.hash = 'recording';
 }
 
 async function stopRecording() {
   recorder.stop();
-
-  // Stopping the tracks makes sure the recording icon in the tab is removed.
   recorder.stream.getTracks().forEach((t) => t.stop());
-
-  // Update current state in URL
   window.location.hash = '';
+}
+
+function playAudio() {
+  if (audioBlobs.length > 0) {
+    const lastBlob = audioBlobs[audioBlobs.length - 1];
+    const audioUrl = URL.createObjectURL(lastBlob);
+    const audio = new Audio(audioUrl);
+    audio.play();
+  } else {
+    console.error('No audio available to play.');
+  }
+}
+
+function downloadAudio() {
+  if (audioBlobs.length > 0) {
+    const lastBlob = audioBlobs[audioBlobs.length - 1];
+    const audioUrl = URL.createObjectURL(lastBlob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = audioUrl;
+    a.download = 'recording.webm';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } else {
+    console.error('No audio available to download.');
+  }
 }
