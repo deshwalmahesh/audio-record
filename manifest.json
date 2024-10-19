@@ -6,7 +6,7 @@
   "minimum_chrome_version": "116",
   "action": {
     "default_popup": "popup.html",
-    "default_icon": "icons/not-recording.png"
+    "default_icon": "not-recording.png"
   },
   "permissions": ["tabCapture", "offscreen"]
 }
