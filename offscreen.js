@@ -31,7 +31,8 @@ async function startRecording(streamId) {
     throw new Error('Called startRecording while recording is in progress.');
   }
 
-  const media = await navigator.mediaDevices.getUserMedia({ 
+  // Request tab audio
+  const tabAudio = await navigator.mediaDevices.getUserMedia({
     audio: {
       mandatory: {
         chromeMediaSource: 'tab',
@@ -40,11 +41,27 @@ async function startRecording(streamId) {
     }
   });
 
+  let micAudio;
+  try {
+    // Attempt to request microphone audio
+    micAudio = await navigator.mediaDevices.getUserMedia({
+      audio: true // Request microphone audio
+    });
+  } catch (error) {
+    console.warn('Microphone not available or permission denied:', error);
+    micAudio = null; // Set micAudio to null if not available
+  }
+
+  // Combine the audio streams if microphone is available
+  const combinedStream = micAudio 
+    ? new MediaStream([...tabAudio.getAudioTracks(), ...micAudio.getAudioTracks()])
+    : tabAudio; // Use only tab audio if mic is not available
+
   const output = new AudioContext();
-  const source = output.createMediaStreamSource(media);
+  const source = output.createMediaStreamSource(combinedStream);
   source.connect(output.destination);
 
-  recorder = new MediaRecorder(media, { mimeType: 'audio/webm' });
+  recorder = new MediaRecorder(combinedStream, { mimeType: 'audio/webm' });
   recorder.ondataavailable = (event) => data.push(event.data);
   recorder.onstop = () => {
     const blob = new Blob(data, { type: 'audio/webm' });
