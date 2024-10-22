@@ -1,0 +1,9 @@
+{
+  "name": "Rec",
+  "version": "2.0",
+  "manifest_version": 3,
+  "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
